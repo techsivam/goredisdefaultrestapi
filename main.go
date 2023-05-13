@@ -18,11 +18,15 @@ type pingResponse struct {
 func handler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	fmt.Println(path)
-	segments := strings.Split(path, "/")
-	tenantName := segments[1]
+
+	/* client := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	}) */
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "redis:6379", // Use "redis" instead of "localhost"
 		Password: "",
 		DB:       0,
 	})
@@ -57,7 +61,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case http.MethodPost:
-		if path == "/"+tenantName {
+		if strings.HasPrefix(path, "/") {
+			tenantName := strings.TrimPrefix(path, "/")
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "Error reading request body", http.StatusBadRequest)

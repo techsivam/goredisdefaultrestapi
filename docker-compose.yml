@@ -7,11 +7,15 @@ services:
       - "8080:8080"
     depends_on:
       - redis
+    networks:
+      - app_network
   
   redis:
     image: redis/redis-stack
     ports:
       - "6379:6379"
+    networks:
+      - app_network
 
   redis-insight:
     image: redislabs/redisinsight:latest
@@ -19,3 +23,8 @@ services:
       - "8001:8001"
     depends_on:
       - redis
+    networks:
+      - app_network
+
+networks:
+  app_network:
