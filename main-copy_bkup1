@@ -8,8 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
-	rejson "github.com/nitishm/go-rejson/v4"
+	"github.com/go-redis/redis"
 )
 
 type pingResponse struct {
@@ -20,19 +19,18 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	fmt.Println(path)
 
-	client := redis.NewClient(&redis.Options{
+	/* client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	}) */
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     "redis:6379", // Use "redis" instead of "localhost"
 		Password: "",
 		DB:       0,
 	})
 
-	/* client := redis.NewClient(&redis.Options{
-		Addr:     "redis:6379", // Use "redis" instead of "localhost"
-		Password: "",
-		DB:       0,
-	}) */
-	rh := rejson.NewReJSONHandler()
-	rh.SetGoRedisClient(client)
 	switch r.Method {
 	case http.MethodGet:
 		if path == "/" {
@@ -48,19 +46,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		} else if strings.HasPrefix(path, "/tenant/") {
 			tenantName := strings.TrimPrefix(path, "/tenant/")
 			fmt.Println("SWITCH:", path)
-
-			value, err := rh.JSONGet(tenantName, ".") // Use rh.JSONGet instead of client.Get
+			value, err := client.Get(tenantName).Result()
 			fmt.Println(value)
-			if err != nil {
+			if err == redis.Nil {
 				http.Error(w, "Tenant not found", http.StatusNotFound)
+			} else if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 			} else {
 				w.Header().Set("Content-Type", "application/json")
-				valueBytes, ok := value.([]byte) // Type assertion to []byte
-				if !ok {
-					http.Error(w, "Error converting JSON data", http.StatusInternalServerError)
-					return
-				}
-				fmt.Fprint(w, string(valueBytes)) // Convert valueBytes to a string
+				fmt.Fprint(w, value)
 			}
 		} else {
 			http.Error(w, "Invalid request path", http.StatusBadRequest)
@@ -75,14 +69,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			var jsonData map[string]interface{}
-			err = json.Unmarshal(body, &jsonData)
-			if err != nil {
-				http.Error(w, "Error unmarshaling JSON", http.StatusBadRequest)
-				return
-			}
-
-			_, err = rh.JSONSet(tenantName, ".", jsonData) // Use rh.JSONSet instead of client.Set
+			err = client.Set(tenantName, string(body), 0).Err()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			} else {
@@ -99,5 +86,5 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", handler)
-	log.Fatal(http.ListenAndServe(":8083", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
